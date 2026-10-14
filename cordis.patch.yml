@@ -1,0 +1,12 @@
+# dsh-phone-access —— DSH bundle 挂载声明
+#
+# DSH 启动时按 bundle 层叠加各插件的 patch，本文件把插件挂进配置树。
+#
+# 安装：
+#   dsh plugin add dsh-phone-access
+# 本地开发安装：
+#   dsh plugin add link:<本目录绝对路径>
+
+- insert:
+    - id: phone-access
+      name: dsh-phone-access

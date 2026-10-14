@@ -1,0 +1,45 @@
+{
+  "name": "dsh-phone-access",
+  "version": "0.1.0",
+  "description": "在 DSH 界面里一键开关的手机远程访问：自动建立 Cloudflare 隧道，把当前会话安全地开放给手机浏览器，并可通过微信推送新地址。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "remote",
+    "tunnel",
+    "cloudflared",
+    "mobile",
+    "phone"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "ui",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": "Hongjun1-RGB",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hongjun1-RGB/dsh-phone-access.git"
+  },
+  "homepage": "https://github.com/Hongjun1-RGB/dsh-phone-access#readme",
+  "bugs": {
+    "url": "https://github.com/Hongjun1-RGB/dsh-phone-access/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  }
+}
