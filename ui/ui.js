@@ -26,7 +26,6 @@
   let cur = null
   let busy = false
   let timer = null
-  let haloRoot = null
   // 非 null 表示正在朝这个目标切换：加载期间开关就按它显示，不被轮询拨回
   let pendingOn = null
 
@@ -143,29 +142,52 @@
   }
 
   // ── 给鲸鱼挂一个正圆光晕 ─────────────────────────────────────────────────
+  // 关键：光晕必须和图片处在**同一个定位上下文**里，并且用**布局坐标**定位。
+  //
+  // 鲸鱼移到左边时，根元素会加上 `.dshwv-left { transform: scaleX(-1) }` 做水平镜像。
+  // 若用 getBoundingClientRect()（屏幕坐标，已被镜像）去设局部的 left/top，
+  // 两个坐标系左右相反，光晕就会歪 —— 实测踩过。
+  // 改用 offsetLeft/offsetTop（不受 transform 影响），并把光晕插进图片的父元素，
+  // 这样镜像、缩放、呼吸动画都会和图片完全同步。
+  let haloEl = null
+  let haloAnchor = null
+
+  function offsetWithin(el, ancestor) {
+    let x = 0, y = 0, n = el
+    while (n && n !== ancestor) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent }
+    return n === ancestor ? { x, y } : null
+  }
+
   function ensureHalo() {
     const root = document.querySelector('.dshwv-root')
     if (!root) return null
     const img = root.querySelector('.dshwv-img')
-    if (!img) return null
-    let halo = root.querySelector('.pa-halo')
-    if (!halo) {
-      halo = document.createElement('div')
-      halo.className = 'pa-halo'
-      root.insertBefore(halo, root.firstChild)
+    if (!img || !img.offsetWidth) return null
+
+    const parent = img.parentElement || root
+    const anchor = getComputedStyle(parent).position === 'static' ? root : parent
+    const off = offsetWithin(img, anchor)
+    if (!off) return null
+
+    if (haloEl && (!haloEl.isConnected || haloAnchor !== anchor)) {
+      try { haloEl.remove() } catch { }
+      haloEl = null
     }
-    if (haloRoot !== root) haloRoot = root
-    // 尺寸/位置对齐鲸鱼图片（比它略大一圈），绝对定位在 root 内
-    const rr = root.getBoundingClientRect()
-    const ir = img.getBoundingClientRect()
-    if (ir.width > 0 && ir.height > 0) {
-      const pad = Math.max(6, Math.round(ir.width * 0.10))
-      const size = Math.round(ir.width + pad * 2)
-      halo.style.width = size + 'px'
-      halo.style.height = size + 'px'
-      halo.style.left = Math.round(ir.left - rr.left - pad) + 'px'
-      halo.style.top = Math.round(ir.top - rr.top - pad) + 'px'
+    if (!haloEl) {
+      haloEl = document.createElement('div')
+      haloEl.className = 'pa-halo'
+      haloAnchor = anchor
     }
+    if (haloEl.parentNode !== anchor || anchor.firstChild !== haloEl) {
+      anchor.insertBefore(haloEl, anchor.firstChild)
+    }
+
+    const w = img.offsetWidth, h = img.offsetHeight
+    const pad = Math.max(6, Math.round(w * 0.10))
+    haloEl.style.width = (w + pad * 2) + 'px'
+    haloEl.style.height = (h + pad * 2) + 'px'
+    haloEl.style.left = (off.x - pad) + 'px'
+    haloEl.style.top = (off.y - pad) + 'px'
     return root
   }
 
