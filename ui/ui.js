@@ -185,6 +185,8 @@
       sw.disabled = loading
     })
     document.querySelectorAll('.pa-lbl').forEach((el) => {
+      // 微信连接那一行的标签也是 .pa-lbl（要 flex:1 的排版），但它有自己的文案，别覆盖
+      if (el.classList.contains('pa-wx-lbl')) return
       el.textContent = loading ? '手机访问（开启中…）' : (showOn ? '手机访问：已开启' : '手机访问：已关闭')
     })
     if (s.error) say(s.error, true)
@@ -274,7 +276,9 @@
     const wrow = document.createElement('div')
     wrow.className = 'dshwv-menu-row pa-row'
     const wlbl = document.createElement('span')
-    wlbl.className = 'pa-lbl'
+    // ⚠️ 必须带 pa-wx-lbl 标记：render() 会改写所有 .pa-lbl 的文案，
+    //    不区分的话微信行会被写成"手机访问：…"，两行字就重了（实测踩过）。
+    wlbl.className = 'pa-lbl pa-wx-lbl'
     wlbl.textContent = '微信连接'
     const wdot = document.createElement('span')
     wdot.className = 'pa-wx-dot'
