@@ -346,6 +346,20 @@
     webhook: '企业微信群机器人地址',
   }
 
+  // 鼠标移开就自动关面板 —— 和鲸鱼自己的主菜单行为一致（它也是移开即收）。
+  // 加一点延迟，避免在面板内部元素之间移动时被误关。
+  function autoCloseOnLeave(host, close) {
+    let t = null
+    const cancel = () => { if (t) { clearTimeout(t); t = null } }
+    host.addEventListener('mouseenter', cancel)
+    host.addEventListener('mouseleave', () => {
+      cancel()
+      t = setTimeout(() => { t = null; try { close() } catch { } }, 300)
+    })
+    // 面板被移除时清掉计时器
+    return cancel
+  }
+
   // 面板样式：两个面板（推送设置 / 微信连接）共用同一份。
   // ⚠️ 必须注入到各自的 Shadow DOM 内部 —— 写在 document.head 里会被 Shadow DOM 隔离，
   //    之前面板渲染成裸 HTML、字号巨大、文字重叠就是这么来的。
@@ -492,6 +506,7 @@
       cfgHost.addEventListener(ev, (e) => e.stopPropagation())
     }
     ;(document.body || document.documentElement).appendChild(cfgHost)
+    autoCloseOnLeave(cfgHost, closeConfig)
   }
 
   function applyStatus(s) {
@@ -616,6 +631,10 @@
       wxHost.addEventListener(ev, (e) => e.stopPropagation())
     }
     ;(document.body || document.documentElement).appendChild(wxHost)
+    autoCloseOnLeave(wxHost, () => {
+      if (wxHost) wxHost.remove()
+      wxHost = null; wxRoot = null
+    })
     load()
     // 面板开着时每 5 秒刷新一次
     const t = setInterval(() => { if (!wxHost) { clearInterval(t); return } load() }, 5000)
