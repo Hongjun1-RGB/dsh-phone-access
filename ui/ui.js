@@ -99,6 +99,7 @@
     #dsh-phone-access-cfg .hd { display:flex; align-items:center; font-weight:600;
       padding-bottom:7px; margin-bottom:8px; border-bottom:1px solid rgba(32,49,112,.18); }
     #dsh-phone-access-cfg .hd .sp { flex:1; }
+    #dsh-phone-access-cfg .hd .ver { font-weight:400; font-size:10px; color:rgba(32,49,112,.4); margin-right:4px; }
     #dsh-phone-access-cfg .x { cursor:pointer; color:#203170; opacity:.5; font-weight:400; padding:0 2px; }
     #dsh-phone-access-cfg .x:hover { opacity:1; }
     #dsh-phone-access-cfg .row { display:flex; align-items:center; gap:8px; margin:7px 0; }
@@ -334,7 +335,7 @@
     cfgRoot = cfgHost.attachShadow({ mode: 'open' })
     cfgRoot.innerHTML = `
       <div class="box">
-        <div class="hd"><span>推送设置</span><span class="sp"></span><span class="x" id="cx">✕</span></div>
+        <div class="hd"><span>推送设置</span><span class="sp"></span><span class="ver" id="cver"></span><span class="x" id="cx">✕</span></div>
         <div class="row"><span class="k">方式</span><select id="ck"></select></div>
         <div class="tip" id="chint"></div>
         <div class="row"><span class="k">密钥</span><input id="ckey" type="password" autocomplete="off" spellcheck="false" placeholder="留空则不修改" /></div>
@@ -433,6 +434,7 @@
     cfgRoot.getElementById('chint').textContent = KIND_HINT[sel.value] || ''
     key.placeholder = s.keySet ? s.keyMasked + '（留空不改）' : '留空则不修改'
     key.value = ''
+    cfgRoot.getElementById('cver').textContent = s.version ? 'v' + s.version : ''
     const m = cfgRoot.getElementById('cmsg')
     m.className = 'msg'
     m.textContent = s.source === 'config' ? '当前来自配置文件，其值优先' : ''
