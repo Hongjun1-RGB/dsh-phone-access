@@ -82,6 +82,53 @@
         box-shadow:0 4px 14px rgba(0,0,0,.14); opacity:0; pointer-events:none; transition:opacity .18s; }
     #dsh-phone-access-host .pa-toast.show { opacity:1; }
     #dsh-phone-access-host .pa-toast.pa-err { color:#dc2626; }
+
+    /* 菜单行里的小齿轮 */
+    .pa-gear { flex:0 0 auto; width:20px; height:20px; border:0; background:transparent; cursor:pointer;
+               color:#203170; opacity:.55; font-size:13px; line-height:1; padding:0; border-radius:5px; }
+    .pa-gear:hover { opacity:1; background:rgba(32,49,112,.1); }
+
+    /* 推送设置面板（独立 Shadow DOM）。配色/字号/圆角刻意对齐鲸鱼菜单，
+       让它看起来像鲸鱼自己的一部分，而不是外挂的一个网页表单。 */
+    #dsh-phone-access-cfg { position:fixed; z-index:2147482010; }
+    #dsh-phone-access-cfg .box {
+      width:268px; box-sizing:border-box; padding:10px 12px 11px;
+      background:rgba(255,255,255,.95); color:#203170;
+      border:1px solid rgba(32,49,112,.35); border-radius:10px;
+      box-shadow:0 6px 18px rgba(0,0,0,.18); color-scheme:light;
+      font:12px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+    #dsh-phone-access-cfg .hd { display:flex; align-items:center; font-weight:600;
+      padding-bottom:7px; margin-bottom:8px; border-bottom:1px solid rgba(32,49,112,.18); }
+    #dsh-phone-access-cfg .hd .sp { flex:1; }
+    #dsh-phone-access-cfg .x { cursor:pointer; color:#203170; opacity:.5; font-weight:400; padding:0 2px; }
+    #dsh-phone-access-cfg .x:hover { opacity:1; }
+    #dsh-phone-access-cfg .row { display:flex; align-items:center; gap:8px; margin:7px 0; }
+    #dsh-phone-access-cfg .row > .k { flex:0 0 56px; color:#203170; opacity:.72; }
+    #dsh-phone-access-cfg select,
+    #dsh-phone-access-cfg input {
+      flex:1; min-width:0; box-sizing:border-box; height:26px; padding:0 7px;
+      font:12px/1.4 inherit; color:#203170; background:#fff;
+      border:1px solid rgba(32,49,112,.4); border-radius:6px; }
+    #dsh-phone-access-cfg select { cursor:pointer; }
+    #dsh-phone-access-cfg input:focus,
+    #dsh-phone-access-cfg select:focus { outline:none; border-color:#203170; box-shadow:0 0 0 2px rgba(32,49,112,.12); }
+    #dsh-phone-access-cfg input::placeholder { color:rgba(32,49,112,.42); }
+    #dsh-phone-access-cfg .tip { color:rgba(32,49,112,.55); font-size:11px; margin:-3px 0 8px 64px; line-height:1.4; }
+    #dsh-phone-access-cfg .acts { display:flex; gap:6px; margin-top:9px; }
+    #dsh-phone-access-cfg button.b {
+      flex:1; height:26px; padding:0 8px; cursor:pointer; font:12px inherit;
+      color:#203170; background:rgba(32,49,112,.08);
+      border:1px solid rgba(32,49,112,.35); border-radius:6px; }
+    #dsh-phone-access-cfg button.b:hover { background:rgba(32,49,112,.16); }
+    #dsh-phone-access-cfg button.b.pri { background:rgba(32,49,112,.88); border-color:rgba(32,49,112,.88); color:#fff; }
+    #dsh-phone-access-cfg button.b.pri:hover { background:#203170; }
+    #dsh-phone-access-cfg button.b:disabled { opacity:.5; cursor:default; }
+    #dsh-phone-access-cfg button.lnk { height:auto; padding:3px 0; border:0; background:none;
+      color:rgba(32,49,112,.55); text-decoration:underline; cursor:pointer; font:11px inherit; }
+    #dsh-phone-access-cfg button.lnk:hover { color:#203170; }
+    #dsh-phone-access-cfg .msg { margin-top:7px; font-size:11px; min-height:15px; color:rgba(32,49,112,.6); }
+    #dsh-phone-access-cfg .msg.ok { color:#16a34a; }
+    #dsh-phone-access-cfg .msg.err { color:#d92d20; }
   `
   ;(document.head || document.documentElement).appendChild(style)
 
@@ -219,8 +266,17 @@
       e.preventDefault(); e.stopPropagation()
       toggle(!(cur && cur.enabled))
     })
+    const gear = document.createElement('button')
+    gear.className = 'pa-gear'
+    gear.textContent = '⚙'
+    gear.title = '推送设置（填微信推送的密钥，免手改配置文件）'
+    gear.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation()
+      openConfig()
+    })
     row.appendChild(lbl)
     row.appendChild(sw)
+    row.appendChild(gear)
     menu.appendChild(row)
     if (cur) render(cur)
   }
@@ -228,6 +284,156 @@
     const menu = document.querySelector('.dshwv-menu')
     if (menu) injectRow(menu)
     ensureHalo()
+  }
+
+  // ── 推送设置面板 ─────────────────────────────────────────────────────────
+  // 密钥只存在本机（服务端落在 ~/.dsh/remote-access/config.json，权限 0600）。
+  // 界面**永远不显示密钥原文**：已配置时只显示一串掩码，输入框留空即代表「不改动」。
+  let cfgHost = null
+  let cfgRoot = null
+
+  const KIND_LABEL = {
+    serverchan: 'Server酱',
+    wxpusher: 'WxPusher',
+    pushplus: 'PushPlus',
+    webhook: '企业微信机器人',
+  }
+  const KIND_HINT = {
+    serverchan: 'sct.ftqq.com 扫码取 SendKey',
+    wxpusher: 'wxpusher.zjiecode.com 扫码取 SPT',
+    pushplus: 'pushplus.plus 取 token（需实名）',
+    webhook: '企业微信群机器人地址',
+  }
+
+  function buildConfigPanel() {
+    if (cfgHost) return
+    cfgHost = document.createElement('div')
+    cfgHost.id = 'dsh-phone-access-cfg'
+    cfgRoot = cfgHost.attachShadow({ mode: 'open' })
+    cfgRoot.innerHTML = `
+      <div class="box">
+        <div class="hd"><span>推送设置</span><span class="sp"></span><span class="x" id="cx">✕</span></div>
+        <div class="row"><span class="k">方式</span><select id="ck"></select></div>
+        <div class="tip" id="chint"></div>
+        <div class="row"><span class="k">密钥</span><input id="ckey" type="password" autocomplete="off" spellcheck="false" placeholder="留空则不修改" /></div>
+        <div class="row"><span class="k">每日上限</span><input id="ccap" type="number" min="1" max="50" value="8" /></div>
+        <div class="acts">
+          <button class="b" id="ctest">测试</button>
+          <button class="b pri" id="csave">保存</button>
+        </div>
+        <div class="acts"><button class="lnk" id="cclear">清除已存密钥</button></div>
+        <div class="msg" id="cmsg"></div>
+      </div>`
+
+    const $ = (id) => cfgRoot.getElementById(id)
+    const sel = $('ck')
+    for (const k of Object.keys(KIND_LABEL)) {
+      const o = document.createElement('option')
+      o.value = k
+      o.textContent = KIND_LABEL[k]
+      sel.appendChild(o)
+    }
+    const setMsg = (t, cls) => { const m = $('cmsg'); m.textContent = t; m.className = 'msg' + (cls ? ' ' + cls : '') }
+    const hint = () => { $('chint').textContent = KIND_HINT[sel.value] || '' }
+    sel.addEventListener('change', hint)
+
+    $('cx').addEventListener('click', closeConfig)
+    $('ctest').addEventListener('click', async () => {
+      const b = $('ctest'); b.disabled = true
+      setMsg('正在发送测试消息…')
+      try {
+        const r = await fetch(API + '/push-test', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: sel.value, key: $('ckey').value }),
+        })
+        const j = await r.json().catch(() => ({}))
+        setMsg(j.ok ? (j.message || '已发送') : ('失败：' + (j.error || r.status)), j.ok ? 'ok' : 'err')
+      } catch (e) { setMsg('请求失败：' + e.message, 'err') }
+      finally { b.disabled = false }
+    })
+
+    $('csave').addEventListener('click', async () => {
+      const b = $('csave'); b.disabled = true
+      setMsg('正在保存…')
+      try {
+        const r = await fetch(API + '/push-config', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: sel.value, key: $('ckey').value, cap: Number($('ccap').value) || 8 }),
+        })
+        const j = await r.json().catch(() => ({}))
+        if (j.ok) { $('ckey').value = ''; applyStatus(j); setMsg('已保存', 'ok') }
+        else setMsg('保存失败：' + (j.error || r.status), 'err')
+      } catch (e) { setMsg('请求失败：' + e.message, 'err') }
+      finally { b.disabled = false }
+    })
+
+    // 不用 window.confirm：桌面端有可能被宿主禁用，改成两步点击确认
+    let clearArmed = false
+    $('cclear').addEventListener('click', async () => {
+      const b = $('cclear')
+      if (!clearArmed) {
+        clearArmed = true
+        b.textContent = '再点一次确认清除'
+        setMsg('清除后需要重新填写密钥。', 'err')
+        setTimeout(() => {
+          if (clearArmed) { clearArmed = false; b.textContent = '清除已存密钥'; setMsg('') }
+        }, 5000)
+        return
+      }
+      clearArmed = false
+      b.textContent = '清除已存密钥'
+      b.disabled = true
+      try {
+        const r = await fetch(API + '/push-config', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clear: true }),
+        })
+        const j = await r.json().catch(() => ({}))
+        if (j.ok) { applyStatus(j); setMsg('已清除本机保存的密钥', 'ok') }
+        else setMsg('清除失败：' + (j.error || r.status), 'err')
+      } catch (e) { setMsg('请求失败：' + e.message, 'err') }
+      finally { b.disabled = false }
+    })
+
+    for (const ev of ['pointerdown', 'mousedown', 'click', 'dblclick', 'pointerup', 'contextmenu']) {
+      cfgHost.addEventListener(ev, (e) => e.stopPropagation())
+    }
+    ;(document.body || document.documentElement).appendChild(cfgHost)
+  }
+
+  function applyStatus(s) {
+    if (!cfgRoot) return
+    const sel = cfgRoot.getElementById('ck')
+    const key = cfgRoot.getElementById('ckey')
+    const cap = cfgRoot.getElementById('ccap')
+    if (s.kind) sel.value = s.kind
+    if (s.cap) cap.value = s.cap
+    cfgRoot.getElementById('chint').textContent = KIND_HINT[sel.value] || ''
+    key.placeholder = s.keySet ? s.keyMasked + '（留空不改）' : '留空则不修改'
+    key.value = ''
+    const m = cfgRoot.getElementById('cmsg')
+    m.className = 'msg'
+    m.textContent = s.source === 'config' ? '当前来自配置文件，其值优先' : ''
+  }
+
+  async function openConfig() {
+    buildConfigPanel()
+    // 鲸鱼菜单贴在右下角，面板放在它**左边**，避免把菜单挤到屏幕外或盖住它
+    const W = 268, H = 210
+    const menu = document.querySelector('.dshwv-menu')
+    const r = menu ? menu.getBoundingClientRect() : null
+    const left = r ? (r.left - W - 8) : (window.innerWidth - W - 20)
+    const top = r ? (r.bottom - H) : 200
+    cfgHost.style.left = Math.max(8, Math.min(left, window.innerWidth - W - 8)) + 'px'
+    cfgHost.style.top = Math.max(8, Math.min(top, window.innerHeight - H - 8)) + 'px'
+    try {
+      const res = await fetch(API + '/push-config', { cache: 'no-store' })
+      if (res.ok) applyStatus(await res.json())
+    } catch { }
+  }
+  function closeConfig() {
+    if (cfgHost) cfgHost.remove()
+    cfgHost = null; cfgRoot = null
   }
 
   // ── 回退图标（没装鲸鱼插件时）─────────────────────────────────────────────
@@ -286,6 +492,11 @@
     fab.addEventListener('click', (e) => {
       e.stopPropagation()
       if (!suppress) toggle(!(cur && cur.enabled))
+    })
+    // 没装鲸鱼插件时，右键图标打开推送设置
+    fab.addEventListener('contextmenu', (e) => {
+      e.preventDefault(); e.stopPropagation()
+      openConfig()
     })
     for (const ev of ['pointerdown', 'mousedown', 'click', 'dblclick', 'pointerup', 'contextmenu']) {
       host.addEventListener(ev, (e) => e.stopPropagation())

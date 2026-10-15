@@ -1,6 +1,6 @@
 {
   "name": "dsh-phone-access",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "在 DSH 界面里一键开关的手机远程访问：自动建立 Cloudflare 隧道，把当前会话安全地开放给手机浏览器，并可通过微信推送新地址。",
   "keywords": [
     "dsh",

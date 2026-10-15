@@ -23,10 +23,11 @@
 
 开关长在鲸鱼娘插件上（如果装了 [`dsh-whale-widget`](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)）：
 
-- 点鲸鱼娘的 ☰ 设置菜单 → 多一行 **「手机访问」**，带拨动开关；
+- 点鲸鱼娘的 ☰ 设置菜单 → 多一行 **「手机访问」**，带拨动开关和一个小齿轮；
 - **点击后开关立刻到位并保持**，鲸鱼开始**转圈**表示加载；
 - **彻底开好之后**鲸鱼身后亮起**圆形绿色呼吸光晕**；
-- 没装鲸鱼插件时，回退成自带的小鲸鱼图标（可拖动）。
+- 点那一行右边的 **⚙** 打开**推送设置**（见下）；
+- 没装鲸鱼插件时，回退成自带的小鲸鱼图标（可拖动，**右键**打开推送设置）。
 
 ## 安装
 
@@ -38,23 +39,40 @@ dsh plugin add dsh-phone-access
 
 ## 配置
 
-在 profile 的 `cordis.patch.yml` 里覆盖：
+### 推送：直接在界面里填（推荐）
+
+点 ☰ 菜单里「手机访问」那行的 **⚙**：
+
+```
+┌──────────────────────────────────┐
+│ 手机访问 · 推送设置                │
+│ 推送方式  [Server酱（微信服务号）▾] │
+│ 密钥      [••••••••••••••••••••] │
+│           已配置：SCT4••••••••lMZ │
+│ 每日上限  [8                    ] │
+│           [ 测试 ]  [ 保存 ]      │
+│           [ 清除已存密钥 ]         │
+└──────────────────────────────────┘
+```
+
+- **测试**：立刻发一条到你的微信，验证填对没有（用的是输入框里的值，**不保存也能测**）。
+- 密钥存在本机 `$DSH_HOME/remote-access/config.json`，权限 `0600`。
+- **界面永远不显示密钥原文** —— 已配置时只显示一串掩码（头 4 位尾 3 位）；接口也不提供任何取回原文的途径。
+
+### 推送：写进 profile 配置（适合批量部署）
+
+在 profile 的 `cordis.patch.yml` 里覆盖。**这里的值优先于界面里存的**：
 
 ```yaml
 - id: phone-access
   config:
-    # 已安装的 cloudflared 路径。留空则依次查找 PATH / 常见安装位置，都没有才下载
-    cloudflaredPath: ''
-    # 本地代理端口；被占用会自动顺延
-    proxyPort: 19389
-    # 主动更换隧道的间隔（分钟）。Cloudflare 免费快速隧道会被回收，默认 130
-    rebuildMinutes: 130
-    # 载入即开启。出于安全默认为 false
-    autoStart: false
-    # 新地址推送到微信；不填则只在界面里可用
-    pushKind: ''        # serverchan | wxpusher | pushplus | webhook
-    pushKey: ''
-    pushCapPerDay: 8    # 每日推送上限，避免触发推送服务的风控
+    cloudflaredPath: ''   # 已安装的 cloudflared 路径。留空则查 PATH / 常见位置，都没有才下载
+    proxyPort: 19389      # 本地代理端口；被占用会自动顺延
+    rebuildMinutes: 130   # 主动更换隧道的间隔（分钟）
+    autoStart: false      # 载入即开启；出于安全默认 false
+    pushKind: serverchan  # serverchan | wxpusher | pushplus | webhook
+    pushKey: ''           # 对应渠道的密钥
+    pushCapPerDay: 8      # 每日推送上限，避免触发推送服务的风控
 ```
 
 ### 推送渠道
@@ -63,10 +81,20 @@ dsh plugin add dsh-phone-access
 
 | pushKind | 说明 | 是否需实名 |
 |---|---|---|
-| `serverchan` | [Server酱](https://sct.ftqq.com/)，消息进微信服务号 | 否 |
+| `serverchan` | [Server酱](https://sct.ftqq.com/)，消息进微信服务号，微信扫码即得 SendKey | 否 |
 | `wxpusher` | [WxPusher](https://wxpusher.zjiecode.com/)，扫码取 SPT | 否 |
 | `pushplus` | pushplus，消息进微信 | **是** |
 | `webhook` | 企业微信群机器人 Webhook 地址 | 否 |
+
+### 隧道：完全不需要注册
+
+用的是 **Cloudflare Quick Tunnel**（`cloudflared tunnel --url …`）：
+
+- **不需要 Cloudflare 账号、不需要域名、不需要任何凭据，也不花钱。**
+- Cloudflare 免费发一条随机域名，形如 `xxx-yyy-zzz.trycloudflare.com`。
+- 代价是域名每次随机、且隧道会被回收（实测几十分钟到数小时）—— 所以插件会主动重建并把新地址推送给你。
+- `cloudflared` 二进制首次使用时自动从 Cloudflare 官方 Release 下载（约 50MB），**不涉及你的任何账号**。
+
 
 ## 顺带做的两件优化
 
@@ -102,9 +130,12 @@ dsh plugin add dsh-phone-access
 HTTP 接口（均需会话 cookie）：
 
 ```
-GET  /remote-access/state    当前状态
-POST /remote-access/toggle   { on: boolean }
-GET  /remote-access/ui.js    界面脚本
+GET  /remote-access/state         当前状态
+POST /remote-access/toggle        { on: boolean }
+GET  /remote-access/ui.js         界面脚本
+GET  /remote-access/push-config   推送配置（**只回掩码，不回密钥原文**）
+POST /remote-access/push-config   { kind, key, cap } 或 { clear: true }
+POST /remote-access/push-test     用表单里尚未保存的值发一条测试
 ```
 
 几点实现上的坑，写下来省得别人再踩：
