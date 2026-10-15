@@ -87,6 +87,12 @@
                color:#203170; opacity:.55; font-size:13px; line-height:1; padding:0; border-radius:5px; }
     .pa-gear:hover { opacity:1; background:rgba(32,49,112,.1); }
 
+    /* 微信连接那一行的状态点 */
+    .pa-wx-dot { flex:0 0 auto; width:8px; height:8px; border-radius:50%;
+                 background:#c4c9d4; transition:background .2s; }
+    .pa-wx-dot.on { background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.18); }
+    .pa-wx-dot.wait { background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.18); }
+
     /* 注意：推送设置面板的样式**不在这里**。
        它挂在 Shadow DOM 里，而 Shadow DOM 会隔离外部样式 —— 写在这儿一条都进不去。
        那些规则放在 buildConfigPanel() 内部的 <style> 里。 */
@@ -262,7 +268,54 @@
     row.appendChild(sw)
     row.appendChild(gear)
     menu.appendChild(row)
+
+    // ── 微信连接那一行（由 @zmainer/dsh-wx-bridge 提供能力）────────────────
+    // 我们只显示状态 + 提供启停/测试入口：桥自己管扫码配对（那需要它的前端面板）。
+    const wrow = document.createElement('div')
+    wrow.className = 'dshwv-menu-row pa-row'
+    const wlbl = document.createElement('span')
+    wlbl.className = 'pa-lbl'
+    wlbl.textContent = '微信连接'
+    const wdot = document.createElement('span')
+    wdot.className = 'pa-wx-dot'
+    wdot.title = '微信桥状态'
+    const wgear = document.createElement('button')
+    wgear.className = 'pa-gear'
+    wgear.textContent = '⚙'
+    wgear.title = '微信连接设置（启停 / 测试推送 / 扫码入口）'
+    wgear.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation()
+      openWxPanel()
+    })
+    wrow.appendChild(wlbl)
+    wrow.appendChild(wdot)
+    wrow.appendChild(wgear)
+    menu.appendChild(wrow)
+
     if (cur) render(cur)
+    refreshWx()
+  }
+
+  // ── 微信桥状态 ───────────────────────────────────────────────────────────
+  let wxState = null
+
+  async function refreshWx() {
+    try {
+      const r = await fetch('/wxbridge/status', { cache: 'no-store' })
+      if (!r.ok) { wxState = null } else { wxState = await r.json() }
+    } catch { wxState = null }
+    paintWx()
+  }
+
+  function paintWx() {
+    const dot = document.querySelector('.pa-wx-dot')
+    if (!dot) return
+    const b = wxState && wxState.bridge
+    dot.classList.remove('on', 'wait')
+    if (!b) { dot.title = '微信桥未运行（或未安装）' }
+    else if (b.phase === 'poll') { dot.classList.add('on'); dot.title = '微信桥已连接（轮询中）' }
+    else if (b.phase === 'wait-credentials') { dot.classList.add('wait'); dot.title = '等待扫码配对' }
+    else { dot.title = '微信桥状态：' + b.phase }
   }
   function scan() {
     const menu = document.querySelector('.dshwv-menu')
@@ -289,56 +342,64 @@
     webhook: '企业微信群机器人地址',
   }
 
+  // 面板样式：两个面板（推送设置 / 微信连接）共用同一份。
+  // ⚠️ 必须注入到各自的 Shadow DOM 内部 —— 写在 document.head 里会被 Shadow DOM 隔离，
+  //    之前面板渲染成裸 HTML、字号巨大、文字重叠就是这么来的。
+  const PANEL_CSS = `
+    :host { position:fixed; z-index:2147482040; }
+    .box {
+      width:268px; box-sizing:border-box; padding:10px 12px 11px;
+      background:rgba(255,255,255,.96); color:#203170;
+      border:1px solid rgba(32,49,112,.35); border-radius:10px;
+      box-shadow:0 6px 18px rgba(0,0,0,.18); color-scheme:light;
+      font:12px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+    .box * { box-sizing:border-box; font-family:inherit; }
+    .hd { display:flex; align-items:center; font-weight:600;
+      padding-bottom:7px; margin-bottom:8px; border-bottom:1px solid rgba(32,49,112,.18); }
+    .hd .sp { flex:1; }
+    .hd .ver { font-weight:400; font-size:10px; color:rgba(32,49,112,.4); margin-right:4px; }
+    .x { cursor:pointer; color:#203170; opacity:.5; font-weight:400; padding:0 2px; }
+    .x:hover { opacity:1; }
+    .row { display:flex; align-items:center; gap:8px; margin:7px 0; }
+    .row > .k { flex:0 0 56px; color:#203170; opacity:.72; }
+    .kv { display:flex; align-items:center; gap:8px; margin:5px 0; }
+    .kv > .k { flex:0 0 56px; color:rgba(32,49,112,.72); }
+    .kv > .v { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#c4c9d4; margin-right:5px; }
+    .dot.on { background:#22c55e; } .dot.wait { background:#f59e0b; }
+    select, input {
+      flex:1; min-width:0; height:26px; padding:0 7px;
+      font:12px/1.4 inherit; color:#203170; background:#fff;
+      border:1px solid rgba(32,49,112,.4); border-radius:6px; }
+    select { cursor:pointer; }
+    input:focus, select:focus { outline:none; border-color:#203170; box-shadow:0 0 0 2px rgba(32,49,112,.12); }
+    input::placeholder { color:rgba(32,49,112,.42); }
+    .tip { color:rgba(32,49,112,.55); font-size:11px; margin:-3px 0 8px 64px; line-height:1.4; }
+    .tip.plain { margin-left:0; }
+    .acts { display:flex; gap:6px; margin-top:9px; }
+    button.b {
+      flex:1; height:26px; padding:0 8px; cursor:pointer; font:12px inherit;
+      color:#203170; background:rgba(32,49,112,.08);
+      border:1px solid rgba(32,49,112,.35); border-radius:6px; }
+    button.b:hover { background:rgba(32,49,112,.16); }
+    button.b.pri { background:rgba(32,49,112,.88); border-color:rgba(32,49,112,.88); color:#fff; }
+    button.b.pri:hover { background:#203170; }
+    button.b:disabled { opacity:.5; cursor:default; }
+    button.lnk { padding:3px 0; border:0; background:none; color:rgba(32,49,112,.55);
+      text-decoration:underline; cursor:pointer; font:11px inherit; }
+    button.lnk:hover { color:#203170; }
+    .msg { margin-top:7px; font-size:11px; min-height:15px; color:rgba(32,49,112,.6); }
+    .msg.ok { color:#16a34a; }
+    .msg.err { color:#d92d20; }
+  `
+
   function buildConfigPanel() {
     if (cfgHost) return
     cfgHost = document.createElement('div')
     cfgHost.id = 'dsh-phone-access-cfg'
     cfgRoot = cfgHost.attachShadow({ mode: 'open' })
-    // ⚠️ 样式必须写在这里（Shadow DOM 内部）。写在 document.head 里是**进不来**的：
-    //    Shadow DOM 会隔离外部样式，之前面板渲染成裸 HTML、字号巨大、文字重叠，
-    //    就是这个原因。选择器也不用再带 #id 前缀（宿主元素在影子树里要写 :host）。
     cfgRoot.innerHTML = `
-      <style>
-        :host { position:fixed; z-index:2147482040; }
-        .box {
-          width:268px; box-sizing:border-box; padding:10px 12px 11px;
-          background:rgba(255,255,255,.96); color:#203170;
-          border:1px solid rgba(32,49,112,.35); border-radius:10px;
-          box-shadow:0 6px 18px rgba(0,0,0,.18); color-scheme:light;
-          font:12px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
-        .box * { box-sizing:border-box; font-family:inherit; }
-        .hd { display:flex; align-items:center; font-weight:600;
-          padding-bottom:7px; margin-bottom:8px; border-bottom:1px solid rgba(32,49,112,.18); }
-        .hd .sp { flex:1; }
-        .hd .ver { font-weight:400; font-size:10px; color:rgba(32,49,112,.4); margin-right:4px; }
-        .x { cursor:pointer; color:#203170; opacity:.5; font-weight:400; padding:0 2px; }
-        .x:hover { opacity:1; }
-        .row { display:flex; align-items:center; gap:8px; margin:7px 0; }
-        .row > .k { flex:0 0 56px; color:#203170; opacity:.72; }
-        select, input {
-          flex:1; min-width:0; height:26px; padding:0 7px;
-          font:12px/1.4 inherit; color:#203170; background:#fff;
-          border:1px solid rgba(32,49,112,.4); border-radius:6px; }
-        select { cursor:pointer; }
-        input:focus, select:focus { outline:none; border-color:#203170; box-shadow:0 0 0 2px rgba(32,49,112,.12); }
-        input::placeholder { color:rgba(32,49,112,.42); }
-        .tip { color:rgba(32,49,112,.55); font-size:11px; margin:-3px 0 8px 64px; line-height:1.4; }
-        .acts { display:flex; gap:6px; margin-top:9px; }
-        button.b {
-          flex:1; height:26px; padding:0 8px; cursor:pointer; font:12px inherit;
-          color:#203170; background:rgba(32,49,112,.08);
-          border:1px solid rgba(32,49,112,.35); border-radius:6px; }
-        button.b:hover { background:rgba(32,49,112,.16); }
-        button.b.pri { background:rgba(32,49,112,.88); border-color:rgba(32,49,112,.88); color:#fff; }
-        button.b.pri:hover { background:#203170; }
-        button.b:disabled { opacity:.5; cursor:default; }
-        button.lnk { padding:3px 0; border:0; background:none; color:rgba(32,49,112,.55);
-          text-decoration:underline; cursor:pointer; font:11px inherit; }
-        button.lnk:hover { color:#203170; }
-        .msg { margin-top:7px; font-size:11px; min-height:15px; color:rgba(32,49,112,.6); }
-        .msg.ok { color:#16a34a; }
-        .msg.err { color:#d92d20; }
-      </style>
+      <style>${PANEL_CSS}</style>
       <div class="box">
         <div class="hd"><span>推送设置</span><span class="sp"></span><span class="ver" id="cver"></span><span class="x" id="cx">✕</span></div>
         <div class="row"><span class="k">方式</span><select id="ck"></select></div>
@@ -463,6 +524,108 @@
   function closeConfig() {
     if (cfgHost) cfgHost.remove()
     cfgHost = null; cfgRoot = null
+  }
+
+  // ── 微信连接面板 ─────────────────────────────────────────────────────────
+  // 只做"看状态 + 启停 + 测试推送 + 指引扫码"。扫码配对本身在桥自己的前端面板里
+  // （设置 → 微信连接），我们不重复实现它，避免和上游打架。
+  let wxHost = null
+  let wxRoot = null
+
+  function buildWxPanel() {
+    if (wxHost) return
+    wxHost = document.createElement('div')
+    wxHost.id = 'dsh-phone-access-wx'
+    wxRoot = wxHost.attachShadow({ mode: 'open' })
+    wxRoot.innerHTML = `
+      <style>${PANEL_CSS}</style>
+      <div class="box">
+        <div class="hd"><span>微信连接</span><span class="sp"></span><span class="x" id="wx">✕</span></div>
+        <div class="kv"><span class="k">状态</span><span class="v" id="wxphase"><span class="dot" id="wxdot"></span>读取中…</span></div>
+        <div class="kv"><span class="k">会话</span><span class="v" id="wxpeers">—</span></div>
+        <div class="tip plain">扫码配对在 <b>设置 → 微信连接</b> 里；配对后这里会显示"已连接"。</div>
+        <div class="acts">
+          <button class="b" id="wxrestart">重启桥</button>
+          <button class="b pri" id="wxpush">测试推送</button>
+        </div>
+        <div class="msg" id="wxmsg"></div>
+      </div>`
+
+    const $ = (id) => wxRoot.getElementById(id)
+    const say = (t, cls) => { const m = $('wxmsg'); m.textContent = t; m.className = 'msg' + (cls ? ' ' + cls : '') }
+
+    const paint = (j) => {
+      const b = j && j.bridge
+      const dot = $('wxdot')
+      dot.className = 'dot'
+      if (!b) { $('wxphase').innerHTML = '<span class="dot"></span>未运行'; $('wxpeers').textContent = '—'; return }
+      if (b.phase === 'poll') dot.classList.add('on')
+      else if (b.phase === 'wait-credentials') dot.classList.add('wait')
+      const label = b.phase === 'poll' ? '已连接（轮询中）'
+        : b.phase === 'wait-credentials' ? '等待扫码配对'
+          : b.phase
+      $('wxphase').innerHTML = ''
+      $('wxphase').appendChild(dot)
+      $('wxphase').appendChild(document.createTextNode(label + '　pid=' + (b.pid || 0)))
+      $('wxpeers').textContent = '已登记 ' + (b.allowedUsers || 0) + ' 人｜运行中任务 ' + (b.running || 0)
+    }
+
+    const load = async () => {
+      try {
+        const r = await fetch('/wxbridge/status', { cache: 'no-store' })
+        if (!r.ok) { $('wxphase').textContent = '未安装微信桥插件'; return }
+        const j = await r.json()
+        wxState = j
+        paintWx()
+        paint(j)
+      } catch (e) { $('wxphase').textContent = '读取失败：' + e.message }
+    }
+
+    $('wx').addEventListener('click', () => { if (wxHost) wxHost.remove(); wxHost = null; wxRoot = null })
+    $('wxrestart').addEventListener('click', async () => {
+      const b = $('wxrestart'); b.disabled = true
+      say('正在重启桥…')
+      try {
+        const r = await fetch('/wxbridge/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        const j = await r.json().catch(() => ({}))
+        if (j.ok) { say('已重启（pid=' + (j.pid || '?') + '）', 'ok'); setTimeout(load, 3000) }
+        else say('重启失败：' + (j.error || r.status), 'err')
+      } catch (e) { say('请求失败：' + e.message, 'err') }
+      finally { b.disabled = false }
+    })
+    $('wxpush').addEventListener('click', async () => {
+      const b = $('wxpush'); b.disabled = true
+      say('正在发送…')
+      try {
+        const r = await fetch('/wxbridge/push', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: '【测试】来自 DSH 手机访问插件的主动推送' }),
+        })
+        const j = await r.json().catch(() => ({}))
+        if (j.ok) say('已排队发送，几秒内到微信（若没收到，先在微信里给机器人发一条消息再试）', 'ok')
+        else say('发送失败：' + (j.error || r.status), 'err')
+      } catch (e) { say('请求失败：' + e.message, 'err') }
+      finally { b.disabled = false }
+    })
+
+    for (const ev of ['pointerdown', 'mousedown', 'click', 'dblclick', 'pointerup', 'contextmenu']) {
+      wxHost.addEventListener(ev, (e) => e.stopPropagation())
+    }
+    ;(document.body || document.documentElement).appendChild(wxHost)
+    load()
+    // 面板开着时每 5 秒刷新一次
+    const t = setInterval(() => { if (!wxHost) { clearInterval(t); return } load() }, 5000)
+  }
+
+  async function openWxPanel() {
+    buildWxPanel()
+    const menu = document.querySelector('.dshwv-menu')
+    const r = menu ? menu.getBoundingClientRect() : null
+    const W = 268, H = 210
+    const left = r ? (r.left - W - 8) : (window.innerWidth - W - 20)
+    const top = r ? (r.bottom - H) : 200
+    wxHost.style.left = Math.max(8, Math.min(left, window.innerWidth - W - 8)) + 'px'
+    wxHost.style.top = Math.max(8, Math.min(top, window.innerHeight - H - 8)) + 'px'
   }
 
   // ── 回退图标（没装鲸鱼插件时）─────────────────────────────────────────────
