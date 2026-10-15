@@ -87,48 +87,9 @@
                color:#203170; opacity:.55; font-size:13px; line-height:1; padding:0; border-radius:5px; }
     .pa-gear:hover { opacity:1; background:rgba(32,49,112,.1); }
 
-    /* 推送设置面板（独立 Shadow DOM）。配色/字号/圆角刻意对齐鲸鱼菜单，
-       让它看起来像鲸鱼自己的一部分，而不是外挂的一个网页表单。 */
-    #dsh-phone-access-cfg { position:fixed; z-index:2147482010; }
-    #dsh-phone-access-cfg .box {
-      width:268px; box-sizing:border-box; padding:10px 12px 11px;
-      background:rgba(255,255,255,.95); color:#203170;
-      border:1px solid rgba(32,49,112,.35); border-radius:10px;
-      box-shadow:0 6px 18px rgba(0,0,0,.18); color-scheme:light;
-      font:12px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
-    #dsh-phone-access-cfg .hd { display:flex; align-items:center; font-weight:600;
-      padding-bottom:7px; margin-bottom:8px; border-bottom:1px solid rgba(32,49,112,.18); }
-    #dsh-phone-access-cfg .hd .sp { flex:1; }
-    #dsh-phone-access-cfg .hd .ver { font-weight:400; font-size:10px; color:rgba(32,49,112,.4); margin-right:4px; }
-    #dsh-phone-access-cfg .x { cursor:pointer; color:#203170; opacity:.5; font-weight:400; padding:0 2px; }
-    #dsh-phone-access-cfg .x:hover { opacity:1; }
-    #dsh-phone-access-cfg .row { display:flex; align-items:center; gap:8px; margin:7px 0; }
-    #dsh-phone-access-cfg .row > .k { flex:0 0 56px; color:#203170; opacity:.72; }
-    #dsh-phone-access-cfg select,
-    #dsh-phone-access-cfg input {
-      flex:1; min-width:0; box-sizing:border-box; height:26px; padding:0 7px;
-      font:12px/1.4 inherit; color:#203170; background:#fff;
-      border:1px solid rgba(32,49,112,.4); border-radius:6px; }
-    #dsh-phone-access-cfg select { cursor:pointer; }
-    #dsh-phone-access-cfg input:focus,
-    #dsh-phone-access-cfg select:focus { outline:none; border-color:#203170; box-shadow:0 0 0 2px rgba(32,49,112,.12); }
-    #dsh-phone-access-cfg input::placeholder { color:rgba(32,49,112,.42); }
-    #dsh-phone-access-cfg .tip { color:rgba(32,49,112,.55); font-size:11px; margin:-3px 0 8px 64px; line-height:1.4; }
-    #dsh-phone-access-cfg .acts { display:flex; gap:6px; margin-top:9px; }
-    #dsh-phone-access-cfg button.b {
-      flex:1; height:26px; padding:0 8px; cursor:pointer; font:12px inherit;
-      color:#203170; background:rgba(32,49,112,.08);
-      border:1px solid rgba(32,49,112,.35); border-radius:6px; }
-    #dsh-phone-access-cfg button.b:hover { background:rgba(32,49,112,.16); }
-    #dsh-phone-access-cfg button.b.pri { background:rgba(32,49,112,.88); border-color:rgba(32,49,112,.88); color:#fff; }
-    #dsh-phone-access-cfg button.b.pri:hover { background:#203170; }
-    #dsh-phone-access-cfg button.b:disabled { opacity:.5; cursor:default; }
-    #dsh-phone-access-cfg button.lnk { height:auto; padding:3px 0; border:0; background:none;
-      color:rgba(32,49,112,.55); text-decoration:underline; cursor:pointer; font:11px inherit; }
-    #dsh-phone-access-cfg button.lnk:hover { color:#203170; }
-    #dsh-phone-access-cfg .msg { margin-top:7px; font-size:11px; min-height:15px; color:rgba(32,49,112,.6); }
-    #dsh-phone-access-cfg .msg.ok { color:#16a34a; }
-    #dsh-phone-access-cfg .msg.err { color:#d92d20; }
+    /* 注意：推送设置面板的样式**不在这里**。
+       它挂在 Shadow DOM 里，而 Shadow DOM 会隔离外部样式 —— 写在这儿一条都进不去。
+       那些规则放在 buildConfigPanel() 内部的 <style> 里。 */
   `
   ;(document.head || document.documentElement).appendChild(style)
 
@@ -333,7 +294,51 @@
     cfgHost = document.createElement('div')
     cfgHost.id = 'dsh-phone-access-cfg'
     cfgRoot = cfgHost.attachShadow({ mode: 'open' })
+    // ⚠️ 样式必须写在这里（Shadow DOM 内部）。写在 document.head 里是**进不来**的：
+    //    Shadow DOM 会隔离外部样式，之前面板渲染成裸 HTML、字号巨大、文字重叠，
+    //    就是这个原因。选择器也不用再带 #id 前缀（宿主元素在影子树里要写 :host）。
     cfgRoot.innerHTML = `
+      <style>
+        :host { position:fixed; z-index:2147482040; }
+        .box {
+          width:268px; box-sizing:border-box; padding:10px 12px 11px;
+          background:rgba(255,255,255,.96); color:#203170;
+          border:1px solid rgba(32,49,112,.35); border-radius:10px;
+          box-shadow:0 6px 18px rgba(0,0,0,.18); color-scheme:light;
+          font:12px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+        .box * { box-sizing:border-box; font-family:inherit; }
+        .hd { display:flex; align-items:center; font-weight:600;
+          padding-bottom:7px; margin-bottom:8px; border-bottom:1px solid rgba(32,49,112,.18); }
+        .hd .sp { flex:1; }
+        .hd .ver { font-weight:400; font-size:10px; color:rgba(32,49,112,.4); margin-right:4px; }
+        .x { cursor:pointer; color:#203170; opacity:.5; font-weight:400; padding:0 2px; }
+        .x:hover { opacity:1; }
+        .row { display:flex; align-items:center; gap:8px; margin:7px 0; }
+        .row > .k { flex:0 0 56px; color:#203170; opacity:.72; }
+        select, input {
+          flex:1; min-width:0; height:26px; padding:0 7px;
+          font:12px/1.4 inherit; color:#203170; background:#fff;
+          border:1px solid rgba(32,49,112,.4); border-radius:6px; }
+        select { cursor:pointer; }
+        input:focus, select:focus { outline:none; border-color:#203170; box-shadow:0 0 0 2px rgba(32,49,112,.12); }
+        input::placeholder { color:rgba(32,49,112,.42); }
+        .tip { color:rgba(32,49,112,.55); font-size:11px; margin:-3px 0 8px 64px; line-height:1.4; }
+        .acts { display:flex; gap:6px; margin-top:9px; }
+        button.b {
+          flex:1; height:26px; padding:0 8px; cursor:pointer; font:12px inherit;
+          color:#203170; background:rgba(32,49,112,.08);
+          border:1px solid rgba(32,49,112,.35); border-radius:6px; }
+        button.b:hover { background:rgba(32,49,112,.16); }
+        button.b.pri { background:rgba(32,49,112,.88); border-color:rgba(32,49,112,.88); color:#fff; }
+        button.b.pri:hover { background:#203170; }
+        button.b:disabled { opacity:.5; cursor:default; }
+        button.lnk { padding:3px 0; border:0; background:none; color:rgba(32,49,112,.55);
+          text-decoration:underline; cursor:pointer; font:11px inherit; }
+        button.lnk:hover { color:#203170; }
+        .msg { margin-top:7px; font-size:11px; min-height:15px; color:rgba(32,49,112,.6); }
+        .msg.ok { color:#16a34a; }
+        .msg.err { color:#d92d20; }
+      </style>
       <div class="box">
         <div class="hd"><span>推送设置</span><span class="sp"></span><span class="ver" id="cver"></span><span class="x" id="cx">✕</span></div>
         <div class="row"><span class="k">方式</span><select id="ck"></select></div>
